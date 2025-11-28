@@ -1,0 +1,91 @@
+---
+title: "Final Project: Potterful R Package"
+author: "Kent Glover"
+format:
+  html:
+    theme: cosmo
+    code-fold: true
+    self-contained: true
+    toc: true
+    df-print: paged
+---
+
+## 1. Introduction
+
+For my final independent project, I developed **Potterful**, an R package designed to standardize aquaculture data management for Potter's Angelfish (*Centropyge potteri*). 
+
+The goal of this project is to streamline the analysis of larval rearing data, which is often messy and inconsistent. The package provides a suite of tools for calculating key growth metrics—such as Specific Growth Rate (SGR) and Thermal Growth Coefficient (TGC)—and includes visualization functions to assess survival probabilities across different rearing protocols.
+
+## 2. Setup
+
+The package is hosted on GitHub and can be installed using `devtools`.
+
+```{r}
+#| label: setup
+#| warning: false
+#| message: false
+
+# Load necessary libraries
+library(tidyverse)
+library(here)
+library(knitr)
+library(survival)
+
+# Install the package if not already installed
+# devtools::install_github("OCN-682-UH/Glover_Final_Project")
+library(Potterful)
+```
+
+## 3. Project Outputs
+
+### Output 1: Survival Analysis
+
+One of the primary challenges in larval rearing is comparing survival rates between different tank protocols. The `plot_survival_km()` function uses the Kaplan-Meier method to visualize these differences.
+
+```{r}
+#| label: survival-plot
+#| fig-cap: "Kaplan-Meier survival curves for different rearing protocols."
+
+# Example usage of the survival plotting function
+# Note: Using the example data included in the package
+plot_survival_km(data = Potterful::pott_spawn_data)
+```
+
+### Output 2: Growth Metrics Table
+
+To assess performance, I created functions to calculate **Specific Growth Rate (SGR)** and **Thermal Growth Coefficient (TGC)**. The function `calc_sgr()` takes initial and final weights along with the time interval to compute the daily growth rate percentage.
+
+```{r}
+#| label: growth-table
+
+# Calculate summary statistics for growth data
+growth_summary <- Potterful::pott_growth_data %>%
+  group_by(tank_id, protocol) %>%
+  summarise(
+    avg_weight_g = mean(weight_g, na.rm = TRUE),
+    SGR = calc_sgr(initial_weight, final_weight, days),
+    TGC = calc_tgc(initial_weight, final_weight, days, temp_c)
+  )
+
+# Display the results
+kable(growth_summary, 
+      caption = "Growth Performance Metrics by Tank", 
+      digits = 2)
+```
+
+### Output 3: Interactive Dashboard
+
+To allow users to explore the data interactively without writing code, I built a Shiny dashboard included within the package. 
+
+You can launch the app locally using the following command:
+
+```r
+# Launch the Potterful Shiny Dashboard
+Potterful::run_potterful()
+```
+
+The app is also deployed online at: [https://thefishlg.shinyapps.io/Potterful/](https://thefishlg.shinyapps.io/Potterful/)
+
+## 4. Conclusion
+
+The **Potterful** package successfully integrates data cleaning, analysis, and visualization into a single workflow. By automating calculations like SGR and FCR, it reduces the potential for human error associated with manual spreadsheet management. Future work will focus on expanding the dashboard features to include real-time data entry.
