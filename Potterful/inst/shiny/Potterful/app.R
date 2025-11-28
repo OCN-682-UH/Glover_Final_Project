@@ -7,73 +7,61 @@ try(library(Potterful), silent = TRUE)
 
 # --- HELPER FUNCTIONS: LOAD LOCAL DATA ---
 
-# Function to find and read the CSV from data-raw
 read_local_csv <- function(filename) {
-  # List of possible paths to data-raw depending on where app is running
   possible_paths <- c(
-    file.path("data-raw", filename),           # If running from package root
-    file.path("..", "..", "..", "data-raw", filename), # If running from inst/shiny/Potterful
-    file.path(".", filename)                   # If files are in same folder
+    file.path("data-raw", filename),
+    file.path("..", "..", "..", "data-raw", filename),
+    file.path(".", filename)
   )
-
-  # Find the first path that actually exists
   valid_path <- possible_paths[file.exists(possible_paths)][1]
-
-  if (is.na(valid_path)) {
-    return(NULL) # File not found
-  }
-
+  if (is.na(valid_path)) return(NULL)
   read.csv(valid_path, stringsAsFactors = FALSE)
 }
 
 get_default_growth <- function() {
-  # 1. Try to read the actual CSV from data-raw
   raw_data <- read_local_csv("pott_growth_data.csv")
 
   if (!is.null(raw_data)) {
-    # CLEANING: Match the column names your app expects
+    # CLEANING: Match names AND remove the empty rows causing warnings
     clean_data <- raw_data %>%
       janitor::clean_names() %>%
       rename(
-        mean_length_mm = length,   # Rename 'length' to 'mean_length_mm'
-        protocol = protocol        # Ensure protocol is lowercase
-      )
+        mean_length_mm = length,
+        protocol = protocol
+      ) %>%
+      # FIX: Filter out rows where crucial data is missing
+      filter(!is.na(dph), !is.na(mean_length_mm), protocol != "")
+
     return(clean_data)
   }
 
-  # 2. Fallback: Try package data if CSV isn't found
+  # Fallback
   tryCatch({
     return(Potterful::potteri_larvae)
   }, error = function(e) return(NULL))
 }
 
 get_default_spawn <- function() {
-  # 1. Try to read the actual CSV from data-raw
   raw_data <- read_local_csv("pott_spawn_data.csv")
 
   if (!is.null(raw_data)) {
-    # CLEANING: Fix dates and remove commas from numbers
     clean_data <- raw_data %>%
       mutate(
-        # Parse Date (Handle M/D/YY format)
         Date = lubridate::mdy(Date),
-        # Remove commas and convert to numeric (e.g., "1,000" -> 1000)
         Viable = as.numeric(gsub(",", "", Viable)),
         Unviable = as.numeric(gsub(",", "", Unviable))
       ) %>%
-      filter(!is.na(Date)) # Remove empty rows if any
+      filter(!is.na(Date)) # Remove empty rows
 
     return(clean_data)
   }
 
-  # 2. Fallback: Try package data
   tryCatch({
     return(Potterful::spawn_data)
   }, error = function(e) return(NULL))
 }
 
 get_potter_theme <- function() {
-  # Helper to safely get the custom theme
   tryCatch({
     Potterful::theme_potter()
   }, error = function(e) {
@@ -146,17 +134,22 @@ server <- function(input, output, session) {
   # --- REACTIVE: Growth Data ---
   growth_dataset <- reactive({
     if (is.null(input$growth_file)) {
-      # Use our new helper function to get data-raw
       return(get_default_growth())
     } else {
-      # Process uploaded file
       req(input$growth_file)
       raw <- read.csv(input$growth_file$datapath) %>%
         janitor::clean_names()
 
-      # Standardize names
       if("length" %in% names(raw)) raw <- rename(raw, mean_length_mm = length)
       if("days" %in% names(raw)) raw <- rename(raw, dph = days)
+
+      # FIX: Apply the same cleaning to user uploads
+      raw <- raw %>%
+        filter(!is.na(dph), !is.na(mean_length_mm))
+
+      if("protocol" %in% names(raw)) {
+        raw <- raw %>% filter(protocol != "")
+      }
 
       return(raw)
     }
@@ -173,19 +166,18 @@ server <- function(input, output, session) {
   # --- REACTIVE: Spawning Data ---
   spawn_dataset <- reactive({
     if (is.null(input$spawn_file)) {
-      # Use our new helper function to get data-raw
       return(get_default_spawn())
     } else {
       req(input$spawn_file)
       raw <- read.csv(input$spawn_file$datapath)
 
-      # Cleaning logic
       raw %>%
         mutate(
           Date = tryCatch(lubridate::mdy(Date), error = function(e) lubridate::ymd(Date)),
           Viable = as.numeric(gsub(",", "", Viable)),
           Unviable = as.numeric(gsub(",", "", Unviable))
-        )
+        ) %>%
+        filter(!is.na(Date)) # Remove empty rows
     }
   })
 
@@ -231,17 +223,35 @@ server <- function(input, output, session) {
       df <- df %>% filter(protocol == input$protocol)
     }
 
+    # Start the plot
     p <- ggplot(df, aes(x = dph, y = .data[[input$y_metric]]))
 
     if("protocol" %in% names(df)) {
       p <- p + aes(color = protocol)
     }
 
-    p + geom_point(alpha = 0.6, size = 3) +
-      geom_smooth(se = FALSE, method = "loess") +
-      get_potter_theme() +
+    p <- p + geom_point(alpha = 0.6, size = 3)
+
+    # --- SMART SMOOTHING ---
+    # Only try LOESS if we have enough unique days (>4) and enough points (>9)
+    # This prevents the "Singularity" and "Reciprocal condition" errors
+    unique_days <- length(unique(df$dph))
+    total_points <- nrow(df)
+
+    if (unique_days >= 5 && total_points >= 10) {
+      # Use span=1 to be less sensitive to small local variations
+      p <- p + geom_smooth(se = FALSE, method = "loess", span = 1.0)
+    } else if (total_points >= 3) {
+      # Fallback to linear model if data is sparse
+      p <- p + geom_smooth(se = FALSE, method = "lm")
+    }
+
+    p <- p + get_potter_theme() +
       labs(title = paste("Larval", input$y_metric, "over Time"),
            x = "Days Post Hatch (dph)")
+
+    # Suppress remaining warnings so they don't clutter the console
+    suppressWarnings(print(p))
   })
 
   output$growthStats <- renderTable({
@@ -285,12 +295,14 @@ server <- function(input, output, session) {
                    names_to = "Egg_Type",
                    values_to = "Count")
 
-    ggplot(plot_data, aes(x = Date, y = Count, fill = Egg_Type)) +
+    p <- ggplot(plot_data, aes(x = Date, y = Count, fill = Egg_Type)) +
       geom_bar(stat = "identity", position = "stack") +
       scale_fill_manual(values = c("Viable" = "#4e79a7", "Unviable" = "#f28e2b")) +
       scale_y_continuous(labels = scales::comma) +
       get_potter_theme() +
       labs(title = "Daily Egg Production", y = "Egg Count")
+
+    print(p)
   })
 
   output$spawnTable <- renderTable({
