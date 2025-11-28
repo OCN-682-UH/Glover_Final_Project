@@ -12,3 +12,32 @@
 #'   \item{temp_c}{Average daily water temperature in Celsius}
 #' }
 "potteri_larvae"
+
+#' Potter's Angelfish Spawning Data
+#'
+#' Historical spawning data for Centropyge potteri, recording daily egg production and viability.
+#'
+#' @format A data frame with the following columns:
+#' \describe{
+#'   \item{Date}{Date of collection}
+#'   \item{Viable}{Count of viable eggs}
+#'   \item{Unviable}{Count of unviable eggs}
+#'   \item{Total}{Total eggs collected}
+#'   \item{Viability_Percent}{Percentage of eggs that were viable}
+#' }
+"spawn_data"
+
+#' Potter's Angelfish Growth Data
+#'
+#' Larval growth measurements including length and flexion stage over time.
+#'
+#' @format A data frame with the following columns:
+#' \describe{
+#'   \item{id}{Unique specimen identifier}
+#'   \item{dph}{Days Post Hatch}
+#'   \item{mean_length_mm}{Total length of the larvae in mm}
+#'   \item{depth}{Body depth in mm}
+#'   \item{flexion}{Flexion stage (0, 1, or 2)}
+#'   \item{protocol}{Experimental rearing protocol used}
+#' }
+"growth_data"

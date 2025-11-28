@@ -1,18 +1,41 @@
 # data-raw/process_data.R
+library(tidyverse)
 library(dplyr)
+library(lubridate)
+library(readr)
+library(tidyr)
 
-# --- Simulate Data (Replace this block with read.csv("data-raw/your_file.csv") ---
-# This ensures you have data even if your CSV isn't ready yet
-set.seed(123)
-potteri_larvae <- data.frame(
-  tank_id = rep(c("T1", "T2", "T3"), each = 60),
-  dph = rep(1:60, 3),
-  protocol = rep(c("Protocol A", "Protocol C", "Protocol A"), each = 60),
-  temp_c = rnorm(180, mean = 26.5, sd = 0.5),
-  mean_length_mm = c(seq(1.5, 4.5, length.out=60), seq(1.5, 3.8, length.out=60), seq(1.5, 4.6, length.out=60)),
-  survival_count = c(seq(1000, 50, length.out=60), seq(1000, 10, length.out=60), seq(1000, 60, length.out=60))
-)
-# --------------------------------------------------------------------------------
+# --- 1. Process Spawning Data ---
+# Read the raw CSV from the data-raw folder
+spawn_raw <- read_csv("data-raw/pott_spawn_data.csv", show_col_types = FALSE)
 
-# Save the data to the package
-usethis::use_data(potteri_larvae, overwrite = TRUE)
+# Clean the data (Logic adapted from your original Shiny app)
+spawn_data <- spawn_raw %>%
+  select(Date, Viable, Unviable, Total, `Viability %...5`) %>%
+  mutate(
+    Date = mdy(Date),
+    # Remove commas and convert to numeric
+    Viable = as.numeric(gsub(",", "", Viable)),
+    Unviable = as.numeric(gsub(",", "", Unviable)),
+    Total = as.numeric(gsub(",", "", Total))
+  ) %>%
+  rename(Viability_Percent = `Viability %...5`) %>%
+  filter(!is.na(Total) & Total > 0)
+
+# --- 2. Process Growth Data ---
+growth_raw <- read_csv("data-raw/pott_growth_data.csv", show_col_types = FALSE)
+
+growth_data <- growth_raw %>%
+  na.omit() %>%
+  mutate(
+    # Standardize column names for easier coding later
+    protocol = as.character(Protocol),
+    flexion = as.factor(`Flexion 0/1/2`),
+    mean_length_mm = length
+  ) %>%
+  select(id, dph, mean_length_mm, depth, flexion, protocol) %>%
+  filter(!is.na(id))
+
+# --- 3. Save to Package ---
+usethis::use_data(spawn_data, growth_data, overwrite = TRUE)
+
