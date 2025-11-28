@@ -1,3 +1,5 @@
 # app.R
-pkgload::load_all(".")
-Potterful::run_potterful() #launches app
+library(shiny)
+library(Potterful)
+
+shiny::shinyAppDir(system.file("shiny", "Potterful", package = "Potterful"))

@@ -1,10 +1,12 @@
 name: Potterful
-title:
+title: Potterful
 username: thefishlg
 account: thefishlg
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 15968645
-bundleId: 11247413
+bundleId:
 url: https://thefishlg.shinyapps.io/Potterful/
 version: 1
+asMultiple: FALSE
+asStatic: FALSE
