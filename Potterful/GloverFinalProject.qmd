@@ -40,8 +40,7 @@ The package provides a suite of tools for:
 
 The package is hosted on GitHub. To replicate this analysis, you will need the `Potterful` package and a few standard data science libraries.
 
-
-```{r}         
+```{r}
 # Load necessary libraries
 library(tidyverse)
 library(knitr)
@@ -83,7 +82,7 @@ Comparing "Protocol A" vs "Protocol C" requires more than just looking at final 
 
 Code snippet
 
-```{r}         
+```{r}
 # Use the simulated 'survival_data' which contains 'dph' and 'status'
 Potterful::plot_survival_km(
   data = survival_data, 
@@ -109,7 +108,7 @@ I wrote three core functions to automate this:
 
 Code snippet
 
-```{r}         
+```{r}
 # Process raw growth data into a summary format
 # We group by 'Protocol' (capitalized) and aggregate the raw lengths
 growth_summary <- growth_data %>%
@@ -139,6 +138,32 @@ kable(growth_summary,
       caption = "Table 1: Comparative Growth and Efficiency Metrics by Protocol", 
       digits = 3,
       col.names = c("Protocol", "Initial (mm)", "Final (mm)", "Days", "Temp (C)", "SGR (%)", "TGC", "FCR"))
+
+
+
+
+
+
+
+
+
+# Load your package (or load the functions if testing locally)
+library(Potterful) 
+library(ggplot2)
+
+# 1. Define the path to your Excel file
+# Replace this with the actual location of your file
+file_path <- "data-raw/Hatchery Datasheet - Biota Research Tanks 2024.xlsx"
+
+# 2. Read and tidy the data
+# This uses the new function we created that handles .xlsx automatically
+hatchery_data <- read_hatchery_data(file_path)
+
+# 3. Inspect the result to make sure it looks right
+print(head(hatchery_data))
+
+# 4. Visualize the feeding schedule
+plot_feeding_schedule(hatchery_data)
 ```
 
 ### Output 3: Visualization Theme (`theme_potter`)
@@ -149,7 +174,7 @@ Here is a visual comparison of the raw data plotted with a standard theme versus
 
 Code snippet
 
-```{r}         
+```{r}
 # Base plot structure using growth_data
 # Note: Using 'Protocol' (capitalized) from the CSV
 base_plot <- ggplot(growth_data, aes(x = dph, y = length, color = Protocol)) +
@@ -180,7 +205,7 @@ You can launch the app locally from within RStudio:
 
 R
 
-```{r}         
+```{r}
 # Launch the Potterful Shiny Dashboard
 Potterful::run_potterful()
 ```
