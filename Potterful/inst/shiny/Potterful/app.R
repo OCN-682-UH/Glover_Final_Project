@@ -251,7 +251,7 @@ server <- function(input, output, session) {
            x = "Days Post Hatch (dph)")
 
     # Suppress remaining warnings so they don't clutter the console
-    suppressWarnings(print(p))
+    print(p)
   })
 
   output$growthStats <- renderTable({
