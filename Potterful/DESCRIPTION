@@ -18,7 +18,8 @@ Imports:
     survival,
     survminer,
     tibble,
-    rlang
+    rlang,
+    readxl
 Suggests: 
     knitr,
     rmarkdown,
