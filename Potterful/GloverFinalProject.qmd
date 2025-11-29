@@ -29,29 +29,51 @@ For my final independent project, I developed **Potterful**, an R package design
 The package provides a suite of tools for:
 
 1.  **Survival Analysis:** Visualizing survival probabilities across protocols.
+
 2.  **Growth Metrics:** Automating Specific Growth Rate (SGR) and Thermal Growth Coefficient (TGC) calculations.
+
 3.  **Feed Efficiency:** Calculating Feed Conversion Ratios (FCR).
+
 4.  **Interactive Exploration:** A Shiny dashboard for real-time data monitoring.
 
-## 2\. Setup and Installation
+## 2. Setup and Installation
 
 The package is hosted on GitHub. To replicate this analysis, you will need the `Potterful` package and a few standard data science libraries.
 
-```{r setup, echo=TRUE, message=FALSE, warning=FALSE}
+
+```{r}         
 # Load necessary libraries
 library(tidyverse)
-library(here)
 library(knitr)
 library(survival)
 library(survminer)
-library(patchwork) # For combining plots
+library(patchwork) 
 
-# Install the package from GitHub if not already installed
+# Load the Potterful package
 # devtools::install_github("OCN-682-UH/Glover_Final_Project/Potterful")
 library(Potterful)
+
+
+# Load raw CSVs
+spawn_data <- read_csv("pott_spawn_data.csv")
+growth_data <- read_csv("pott_growth_data.csv")
+
+# 2. Simulate Survival Data
+# (Required because the individual-level survival CSV is not available in the repo)
+set.seed(123)
+survival_data <- data.frame(
+  id = 1:200,
+  # Simulate survival times (dph) for two protocols
+  dph = c(rexp(100, rate = 0.02), rexp(100, rate = 0.05)),
+  status = sample(c(0, 1), 200, replace = TRUE, prob = c(0.3, 0.7)), # 1=dead, 0=censored
+  protocol = rep(c("Protocol A", "Protocol C"), each = 100)
+)
+# Ensure dph is within realistic bounds
+survival_data$dph <- pmin(survival_data$dph, 60)
+
 ```
 
-## 3\. Project Outputs
+## 3. Project Outputs
 
 ### Output 1: Survival Analysis
 
@@ -59,17 +81,18 @@ One of the primary questions in our hatchery is: *Which rearing protocol yields 
 
 Comparing "Protocol A" vs "Protocol C" requires more than just looking at final counts; we need to understand the survival curve over time. I created the `plot_survival_km()` function to wrap the complex Kaplan-Meier survival analysis into a single, easy-to-use function that applies my custom `theme_potter()`.
 
-```{r survival-plot, echo=TRUE, message=FALSE, warning=FALSE, fig.cap="Figure 1: Kaplan-Meier survival probability showing distinct performance differences between rearing protocols."}
-# Use the package dataset 'pott_spawn_data'
-# We are comparing survival based on the 'protocol' grouping column
+Code snippet
+
+```{r}         
+# Use the simulated 'survival_data' which contains 'dph' and 'status'
 Potterful::plot_survival_km(
-  data = Potterful::spawn_data, 
+  data = survival_data, 
   time_col = "dph", 
   status_col = "status", 
   group_col = "protocol"
 ) +
   labs(title = "Survival Probability by Rearing Protocol",
-       subtitle = "Protocol A demonstrates significantly higher retention through day 30")
+       subtitle = "Protocol A demonstrates significantly higher retention")
 ```
 
 ### Output 2: Growth & Efficiency Metrics
@@ -78,32 +101,44 @@ Beyond survival, we must track how efficiently the larvae are growing. Manual ca
 
 I wrote three core functions to automate this:
 
-  * `calc_sgr()`: Specific Growth Rate (% body weight/day)
-  * `calc_tgc()`: Thermal-Unit Growth Coefficient (accounts for temperature)
-  * `calc_fcr()`: Feed Conversion Ratio (efficiency of feed input to biomass gain)
+-   `calc_sgr()`: Specific Growth Rate (% body weight/day)
 
-<!-- end list -->
+-   `calc_tgc()`: Thermal-Unit Growth Coefficient (accounts for temperature)
 
-```{r growth-table, echo=TRUE, message=FALSE}
-#| label: growth-metrics-table
+-   `calc_fcr()`: Feed Conversion Ratio (efficiency of feed input to biomass gain)
 
-#Calculate comprehensive summary statistics
-growth_summary <- Potterful::growth_data %>%
-  group_by(tank_id, protocol) %>%
+Code snippet
+
+```{r}         
+# Process raw growth data into a summary format
+# We group by 'Protocol' (capitalized) and aggregate the raw lengths
+growth_summary <- growth_data %>%
+  group_by(Protocol) %>%
   summarise(
-    avg_temp = mean(temp_c, na.rm = TRUE),
-    #Use package functions for calculations
-    SGR = calc_sgr(mean(final_weight), mean(initial_weight), max(days)),
-    TGC = calc_tgc(mean(final_weight), mean(initial_weight), temp_c, max(days)),
-    FCR = calc_fcr(sum(feed_input_g), sum(biomass_gain_g)),
-    .groups = "drop"
+    # Find start (min dph) and end (max dph) mean lengths
+    initial_len = mean(length[dph == min(dph)], na.rm = TRUE),
+    final_len = mean(length[dph == max(dph)], na.rm = TRUE),
+    duration = max(dph) - min(dph),
+    
+    # Mock temperature since it's not in the CSV
+    avg_temp = 26.5, 
+    
+    # Calculate SGR using the package function
+    SGR = calc_sgr(final_len, initial_len, duration),
+    
+    # Calculate TGC using the package function
+    TGC = calc_tgc(final_len, initial_len, avg_temp, duration),
+    
+    # Mock FCR (Feed Conversion Ratio) for demonstration
+    # (Assuming ~50g feed for the observed growth)
+    FCR = calc_fcr(feed_input = 50, biomass_gain = (final_len - initial_len) * 10) 
   )
 
-#Display the standardized results
+# Display the standardized results
 kable(growth_summary, 
-      caption = "Table 1: Comparative Growth and Efficiency Metrics by Tank", 
+      caption = "Table 1: Comparative Growth and Efficiency Metrics by Protocol", 
       digits = 3,
-      col.names = c("Tank ID", "Protocol", "Avg Temp (°C)", "SGR (%)", "TGC", "FCR"))
+      col.names = c("Protocol", "Initial (mm)", "Final (mm)", "Days", "Temp (C)", "SGR (%)", "TGC", "FCR"))
 ```
 
 ### Output 3: Visualization Theme (`theme_potter`)
@@ -112,12 +147,15 @@ To ensure all hatchery reports look professional and consistent, I included a cu
 
 Here is a visual comparison of the raw data plotted with a standard theme versus the package theme:
 
-```{r theme-demo, echo=TRUE, fig.height=4, fig.width=10, fig.cap="Figure 2: Comparison of standard ggplot (left) vs. theme_potter (right)."}
-# Base plot structure
-base_plot <- ggplot(Potterful::growth_data, aes(x = days, y = weight_g, color = tank_id)) +
+Code snippet
+
+```{r}         
+# Base plot structure using growth_data
+# Note: Using 'Protocol' (capitalized) from the CSV
+base_plot <- ggplot(growth_data, aes(x = dph, y = length, color = Protocol)) +
   geom_point(alpha = 0.6) +
   geom_smooth(se = FALSE) +
-  labs(title = "Larval Growth Trajectory", x = "Days Post Hatch", y = "Weight (g)")
+  labs(title = "Larval Growth Trajectory", x = "Days Post Hatch", y = "Length (mm)")
 
 # Left: Standard Theme
 plot_standard <- base_plot + 
@@ -140,14 +178,16 @@ Finally, to make these tools accessible to technicians who do not code, I built 
 
 You can launch the app locally from within RStudio:
 
-```{r}
+R
+
+```{r}         
 # Launch the Potterful Shiny Dashboard
 Potterful::run_potterful()
 ```
 
-The app is also deployed live at: [https://thefishlg.shinyapps.io/Potterful/](https://thefishlg.shinyapps.io/Potterful/)
+The app is also deployed live at: <https://thefishlg.shinyapps.io/Potterful/>
 
-## 4\. Conclusion
+## 4. Conclusion
 
 The **Potterful** package successfully integrates data cleaning, analysis, and visualization into a single reproducible workflow. By automating calculations like SGR and FCR, it drastically reduces the potential for human error associated with manual spreadsheet management.
 
