@@ -2,200 +2,161 @@ library(shiny)
 library(tidyverse)
 library(lubridate)
 library(bslib)
-# Try to load the package, but don't crash if it's not installed
-try(library(Potterful), silent = TRUE)
+library(janitor)
 
-# --- HELPER FUNCTIONS: LOAD LOCAL DATA ---
-
-read_local_csv <- function(filename) {
-  possible_paths <- c(
-    file.path("data-raw", filename),
-    file.path("..", "..", "..", "data-raw", filename),
-    file.path(".", filename)
-  )
-  valid_path <- possible_paths[file.exists(possible_paths)][1]
-  if (is.na(valid_path)) return(NULL)
-  read.csv(valid_path, stringsAsFactors = FALSE)
+# --- 1. DEFINE THEME LOCALLY ---
+theme_potter <- function(base_size = 12) {
+  theme_bw(base_size = base_size) +
+    theme(
+      strip.background = element_rect(fill = "#2c3e50"),
+      strip.text = element_text(color = "white", face = "bold"),
+      legend.position = "bottom",
+      plot.title = element_text(face = "bold", hjust = 0.5)
+    )
 }
 
+# --- 2. DATA LOADING FUNCTIONS ---
 get_default_growth <- function() {
-  raw_data <- read_local_csv("pott_growth_data.csv")
+  if (file.exists("pott_growth_data.csv")) {
+    raw <- read.csv("pott_growth_data.csv", stringsAsFactors = FALSE) %>%
+      janitor::clean_names()
 
-  if (!is.null(raw_data)) {
-    # CLEANING: Match names AND remove the empty rows causing warnings
-    clean_data <- raw_data %>%
-      janitor::clean_names() %>%
-      rename(
-        mean_length_mm = length,
-        protocol = protocol
-      ) %>%
-      # FIX: Filter out rows where crucial data is missing
-      filter(!is.na(dph), !is.na(mean_length_mm), protocol != "")
+    # Standardize column names
+    if("length" %in% names(raw)) raw <- rename(raw, mean_length_mm = length)
+    if("days" %in% names(raw)) raw <- rename(raw, dph = days)
 
-    return(clean_data)
+    # Cleaning: Remove empty rows causing issues
+    raw <- raw %>%
+      filter(!is.na(dph), !is.na(mean_length_mm))
+
+    if("protocol" %in% names(raw)) raw <- raw %>% filter(protocol != "")
+
+    return(raw)
   }
-
-  # Fallback
-  tryCatch({
-    return(Potterful::potteri_larvae)
-  }, error = function(e) return(NULL))
+  return(NULL)
 }
 
 get_default_spawn <- function() {
-  raw_data <- read_local_csv("pott_spawn_data.csv")
-
-  if (!is.null(raw_data)) {
-    clean_data <- raw_data %>%
+  if (file.exists("pott_spawn_data.csv")) {
+    raw <- read.csv("pott_spawn_data.csv", stringsAsFactors = FALSE) %>%
       mutate(
-        Date = lubridate::mdy(Date),
+        # Handle Date formats robustly
+        Date = tryCatch(lubridate::mdy(Date), error = function(e) lubridate::ymd(Date)),
         Viable = as.numeric(gsub(",", "", Viable)),
         Unviable = as.numeric(gsub(",", "", Unviable))
       ) %>%
-      filter(!is.na(Date)) # Remove empty rows
-
-    return(clean_data)
+      filter(!is.na(Date))
+    return(raw)
   }
-
-  tryCatch({
-    return(Potterful::spawn_data)
-  }, error = function(e) return(NULL))
+  return(NULL)
 }
 
-get_potter_theme <- function() {
-  tryCatch({
-    Potterful::theme_potter()
-  }, error = function(e) {
-    theme_minimal()
-  })
-}
-
-# --- UI DEFINITION ---
+# --- 3. UI DEFINITION ---
 ui <- navbarPage(
   title = "Potterful Analytics",
   theme = bslib::bs_theme(version = 4, bootswatch = "flatly"),
 
-  # Tab 1: Larval Growth
   tabPanel("Larval Growth",
            sidebarLayout(
              sidebarPanel(
                h4("Data Source"),
-               fileInput("growth_file", "Upload Growth CSV",
-                         accept = c(".csv"),
-                         placeholder = "Using data-raw/pott_growth_data.csv"),
-               helpText("Required columns: 'dph', 'protocol', 'length'"),
+               fileInput("growth_file", "Upload Growth CSV", accept = ".csv"),
+               # Dynamic status message
+               uiOutput("growth_file_status"),
                hr(),
-               h4("Controls"),
                uiOutput("protocol_selector"),
                selectInput("y_metric", "Y-Axis Metric:",
-                           choices = c("Length (mm)" = "mean_length_mm",
-                                       "Body Depth" = "depth"),
-                           selected = "mean_length_mm"),
-               hr()
+                           choices = c("Length (mm)" = "mean_length_mm", "Body Depth" = "depth"),
+                           selected = "mean_length_mm")
              ),
              mainPanel(
-               textOutput("growth_status"),
-               tags$hr(),
                plotOutput("growthPlot"),
                br(),
-               h4("Growth Statistics"),
                tableOutput("growthStats")
              )
            )
   ),
 
-  # Tab 2: Spawning Trends
   tabPanel("Spawning Trends",
            sidebarLayout(
              sidebarPanel(
                h4("Data Source"),
-               fileInput("spawn_file", "Upload Spawning CSV",
-                         accept = c(".csv"),
-                         placeholder = "Using data-raw/pott_spawn_data.csv"),
-               helpText("Required columns: 'Date', 'Viable', 'Unviable'"),
+               fileInput("spawn_file", "Upload Spawning CSV", accept = ".csv"),
+               uiOutput("spawn_file_status"),
                hr(),
-               h4("Filters"),
                uiOutput("date_range_ui")
              ),
              mainPanel(
-               textOutput("spawn_status"),
-               tags$hr(),
                plotOutput("spawnPlot"),
                hr(),
-               h4("Viability Summary"),
                tableOutput("spawnTable")
              )
            )
   )
 )
 
-# --- SERVER LOGIC ---
+# --- 4. SERVER LOGIC ---
 server <- function(input, output, session) {
 
-  # --- REACTIVE: Growth Data ---
+  # --- Growth Data ---
   growth_dataset <- reactive({
     if (is.null(input$growth_file)) {
       return(get_default_growth())
     } else {
       req(input$growth_file)
-      raw <- read.csv(input$growth_file$datapath) %>%
-        janitor::clean_names()
-
+      raw <- read.csv(input$growth_file$datapath) %>% janitor::clean_names()
       if("length" %in% names(raw)) raw <- rename(raw, mean_length_mm = length)
       if("days" %in% names(raw)) raw <- rename(raw, dph = days)
 
-      # FIX: Apply the same cleaning to user uploads
-      raw <- raw %>%
-        filter(!is.na(dph), !is.na(mean_length_mm))
-
-      if("protocol" %in% names(raw)) {
-        raw <- raw %>% filter(protocol != "")
-      }
-
+      raw <- raw %>% filter(!is.na(dph), !is.na(mean_length_mm))
+      if("protocol" %in% names(raw)) raw <- raw %>% filter(protocol != "")
       return(raw)
     }
   })
 
-  output$growth_status <- renderText({
-    if (is.null(input$growth_file)) {
-      "Viewing: Original Project Data (from data-raw/pott_growth_data.csv)"
+  output$growth_file_status <- renderUI({
+    if (is.null(growth_dataset())) {
+      helpText("⚠️ Data file not found. Please upload a CSV.", style = "color: red;")
+    } else if (is.null(input$growth_file)) {
+      helpText("Using: Default Project Data", style = "color: green;")
     } else {
-      paste("Viewing: User Uploaded Data -", input$growth_file$name)
+      helpText(paste("Using:", input$growth_file$name))
     }
   })
 
-  # --- REACTIVE: Spawning Data ---
+  # --- Spawn Data ---
   spawn_dataset <- reactive({
     if (is.null(input$spawn_file)) {
       return(get_default_spawn())
     } else {
       req(input$spawn_file)
       raw <- read.csv(input$spawn_file$datapath)
-
       raw %>%
         mutate(
           Date = tryCatch(lubridate::mdy(Date), error = function(e) lubridate::ymd(Date)),
           Viable = as.numeric(gsub(",", "", Viable)),
           Unviable = as.numeric(gsub(",", "", Unviable))
         ) %>%
-        filter(!is.na(Date)) # Remove empty rows
+        filter(!is.na(Date))
     }
   })
 
-  output$spawn_status <- renderText({
-    if (is.null(input$spawn_file)) {
-      "Viewing: Original Project Data (from data-raw/pott_spawn_data.csv)"
+  output$spawn_file_status <- renderUI({
+    if (is.null(spawn_dataset())) {
+      helpText("⚠️ Data file not found. Please upload a CSV.", style = "color: red;")
+    } else if (is.null(input$spawn_file)) {
+      helpText("Using: Default Project Data", style = "color: green;")
     } else {
-      paste("Viewing: User Uploaded Data -", input$spawn_file$name)
+      helpText(paste("Using:", input$spawn_file$name))
     }
   })
 
-  # --- DYNAMIC UI INPUTS ---
+  # --- UI Inputs ---
   output$protocol_selector <- renderUI({
     req(growth_dataset())
     df <- growth_dataset()
     if("protocol" %in% names(df)) {
-      selectInput("protocol", "Select Protocol:",
-                  choices = c("All", unique(as.character(df$protocol))))
+      selectInput("protocol", "Select Protocol:", choices = c("All", unique(as.character(df$protocol))))
     }
   })
 
@@ -203,13 +164,11 @@ server <- function(input, output, session) {
     req(spawn_dataset())
     df <- spawn_dataset()
     if("Date" %in% names(df) && nrow(df) > 0) {
-      dateRangeInput("dates", "Select Date Range:",
-                     start = min(df$Date, na.rm=TRUE),
-                     end = max(df$Date, na.rm=TRUE))
+      dateRangeInput("dates", "Select Date Range:", start = min(df$Date, na.rm=TRUE), end = max(df$Date, na.rm=TRUE))
     }
   })
 
-  # --- OUTPUTS: Tab 1 (Growth) ---
+  # --- Plots (FIXED: No more LOESS warnings) ---
   output$growthPlot <- renderPlot({
     req(growth_dataset())
     df <- growth_dataset()
@@ -223,102 +182,68 @@ server <- function(input, output, session) {
       df <- df %>% filter(protocol == input$protocol)
     }
 
-    # Start the plot
     p <- ggplot(df, aes(x = dph, y = .data[[input$y_metric]]))
-
-    if("protocol" %in% names(df)) {
-      p <- p + aes(color = protocol)
-    }
+    if("protocol" %in% names(df)) p <- p + aes(color = protocol)
 
     p <- p + geom_point(alpha = 0.6, size = 3)
 
-    # --- SMART SMOOTHING ---
-    # Only try LOESS if we have enough unique days (>4) and enough points (>9)
-    # This prevents the "Singularity" and "Reciprocal condition" errors
-    unique_days <- length(unique(df$dph))
-    total_points <- nrow(df)
-
-    if (unique_days >= 5 && total_points >= 10) {
-      # Use span=1 to be less sensitive to small local variations
-      p <- p + geom_smooth(se = FALSE, method = "loess", span = 1.0)
-    } else if (total_points >= 3) {
-      # Fallback to linear model if data is sparse
-      p <- p + geom_smooth(se = FALSE, method = "lm")
+    # FIX: Use 'lm' (Linear Model) instead of 'loess' to stop the warnings
+    # This draws a straight trend line, which is robust and won't crash
+    if (nrow(df) >= 3) {
+      p <- p + geom_smooth(se = FALSE, method = "lm", formula = y ~ x)
     }
 
-    p <- p + get_potter_theme() +
-      labs(title = paste("Larval", input$y_metric, "over Time"),
-           x = "Days Post Hatch (dph)")
-
-    # Suppress remaining warnings so they don't clutter the console
-    print(p)
+    p + theme_potter() + labs(title = paste("Larval", input$y_metric), x = "Days Post Hatch (dph)")
   })
 
   output$growthStats <- renderTable({
     req(growth_dataset())
     df <- growth_dataset()
 
+    # Check if protocol exists to decide how to group
     if("protocol" %in% names(df)) {
-      df %>%
-        group_by(protocol) %>%
-        summarise(
-          Mean = mean(.data[[input$y_metric]], na.rm=TRUE),
-          Max = max(.data[[input$y_metric]], na.rm=TRUE),
-          N = n()
-        )
+      df %>% group_by(protocol) %>%
+        summarise(Mean = mean(.data[[input$y_metric]], na.rm=TRUE),
+                  Max = max(.data[[input$y_metric]], na.rm=TRUE),
+                  N = n())
     } else {
-      df %>%
-        summarise(
-          Mean = mean(.data[[input$y_metric]], na.rm=TRUE),
-          Max = max(.data[[input$y_metric]], na.rm=TRUE),
-          N = n()
-        )
+      df %>% summarise(Mean = mean(.data[[input$y_metric]], na.rm=TRUE),
+                       Max = max(.data[[input$y_metric]], na.rm=TRUE),
+                       N = n())
     }
   })
 
-  # --- OUTPUTS: Tab 2 (Spawning) ---
   output$spawnPlot <- renderPlot({
     req(spawn_dataset())
     df <- spawn_dataset()
 
-    validate(
-      need("Viable" %in% names(df), "Data not available or missing columns"),
-      need(nrow(df) > 0, "Not enough data to plot")
-    )
+    # Suppress warnings about removed rows (common in bar charts with NAs)
+    suppressWarnings({
+      if (!is.null(input$dates)) df <- df %>% filter(Date >= input$dates[1] & Date <= input$dates[2])
 
-    if (!is.null(input$dates)) {
-      df <- df %>% filter(Date >= input$dates[1] & Date <= input$dates[2])
-    }
+      plot_data <- df %>% pivot_longer(cols = c(Viable, Unviable), names_to = "Egg_Type", values_to = "Count")
 
-    plot_data <- df %>%
-      pivot_longer(cols = c(Viable, Unviable),
-                   names_to = "Egg_Type",
-                   values_to = "Count")
-
-    p <- ggplot(plot_data, aes(x = Date, y = Count, fill = Egg_Type)) +
-      geom_bar(stat = "identity", position = "stack") +
-      scale_fill_manual(values = c("Viable" = "#4e79a7", "Unviable" = "#f28e2b")) +
-      scale_y_continuous(labels = scales::comma) +
-      get_potter_theme() +
-      labs(title = "Daily Egg Production", y = "Egg Count")
-
-    print(p)
+      ggplot(plot_data, aes(x = Date, y = Count, fill = Egg_Type)) +
+        geom_bar(stat = "identity", position = "stack") +
+        scale_fill_manual(values = c("Viable" = "#4e79a7", "Unviable" = "#f28e2b")) +
+        scale_y_continuous(labels = scales::comma) +
+        theme_potter() +
+        labs(title = "Daily Egg Production", y = "Egg Count")
+    })
   })
 
   output$spawnTable <- renderTable({
-    req(spawn_dataset(), input$dates)
-
-    df <- spawn_dataset() %>%
-      filter(Date >= input$dates[1] & Date <= input$dates[2])
+    req(spawn_dataset())
+    df <- spawn_dataset()
+    if (!is.null(input$dates)) df <- df %>% filter(Date >= input$dates[1] & Date <= input$dates[2])
 
     if(nrow(df) == 0) return(NULL)
 
-    df %>%
-      summarise(
-        `Total Eggs` = sum(Viable + Unviable, na.rm=TRUE),
-        `Total Viable` = sum(Viable, na.rm=TRUE),
-        `Avg Viability %` = mean(Viable/(Viable+Unviable)*100, na.rm=TRUE)
-      ) %>%
+    df %>% summarise(
+      `Total Eggs` = sum(Viable + Unviable, na.rm=TRUE),
+      `Total Viable` = sum(Viable, na.rm=TRUE),
+      `Avg Viability %` = mean(Viable/(Viable+Unviable)*100, na.rm=TRUE)
+    ) %>%
       mutate(
         `Total Eggs` = format(`Total Eggs`, big.mark=","),
         `Total Viable` = format(`Total Viable`, big.mark=",")
