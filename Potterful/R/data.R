@@ -41,3 +41,17 @@
 #'   \item{protocol}{Experimental rearing protocol used}
 #' }
 "growth_data"
+
+#' Master Hatchery Dataset
+#'
+#' A combined dataset of all tank runs from the 2024 season.
+#'
+#' @format A data frame with the following columns:
+#' \describe{
+#'   \item{age}{Age of the culture in days (DPH)}
+#'   \item{date}{Calendar date of the observation}
+#'   \item{feed_category}{Type of feed (Algae, Rotifers, etc.)}
+#'   \item{feed_type}{Specific strain or product name (e.g., "Tiso", "Parvo")}
+#'   \item{source_file}{Original filename, used to identify the specific Tank ID}
+#' }
+"hatchery_master"

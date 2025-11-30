@@ -33,7 +33,7 @@ The package provides a suite of tools for:
 3.  **Feed Efficiency:** Calculating Feed Conversion Ratios (FCR).
 4.  **Interactive Exploration:** A Shiny dashboard for real-time data monitoring.
 
-## 2\. Setup and Installation
+## 2. Setup and Installation
 
 The package is hosted on GitHub. To replicate this analysis, you will need the `Potterful` package and a few standard data science libraries.
 
@@ -44,14 +44,23 @@ library(here)
 library(knitr)
 library(survival)
 library(survminer)
-library(patchwork) # For combining plots
+library(patchwork)
+library(ggplot2)
+library(dplyr)
 
-# Install the package from GitHub if not already installed
+# Install the Potterful package from GitHub if not already installed
+
+# If developing locally:
 # devtools::install_github("OCN-682-UH/Glover_Final_Project/Potterful")
 library(Potterful)
+devtools::load_all("Potterful") 
+
+# If installed:
+library(Potterful)
+
 ```
 
-## 3\. Project Outputs
+## 3. Project Outputs
 
 ### Output 1: Survival Analysis
 
@@ -78,9 +87,9 @@ Beyond survival, we must track how efficiently the larvae are growing. Manual ca
 
 I wrote three core functions to automate this:
 
-  * `calc_sgr()`: Specific Growth Rate (% body weight/day)
-  * `calc_tgc()`: Thermal-Unit Growth Coefficient (accounts for temperature)
-  * `calc_fcr()`: Feed Conversion Ratio (efficiency of feed input to biomass gain)
+-   `calc_sgr()`: Specific Growth Rate (% body weight/day)
+-   `calc_tgc()`: Thermal-Unit Growth Coefficient (accounts for temperature)
+-   `calc_fcr()`: Feed Conversion Ratio (efficiency of feed input to biomass gain)
 
 <!-- end list -->
 
@@ -145,9 +154,9 @@ You can launch the app locally from within RStudio:
 Potterful::run_potterful()
 ```
 
-The app is also deployed live at: [https://thefishlg.shinyapps.io/Potterful/](https://thefishlg.shinyapps.io/Potterful/)
+The app is also deployed live at: <https://thefishlg.shinyapps.io/Potterful/>
 
-## 4\. Conclusion
+## 4. Conclusion
 
 The **Potterful** package successfully integrates data cleaning, analysis, and visualization into a single reproducible workflow. By automating calculations like SGR and FCR, it drastically reduces the potential for human error associated with manual spreadsheet management.
 
