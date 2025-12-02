@@ -125,10 +125,8 @@ get_default_spawn <- function() {
 
 # --- UI ---
 ui <- navbarPage(
-  title = div(
-    img(src = "potters_angel.jpg", height = "30px", style = "margin-right: 10px;"),
-    "Potterful Analytics"
-  ),
+  title = "Potterful Analytics"
+  ,
   theme = bslib::bs_theme(version = 4, bootswatch = "flatly"),
 
   tabPanel("Larval Growth",
@@ -194,8 +192,8 @@ ui <- navbarPage(
   # Footer with Big Image
   footer = div(
     style = "text-align: center; padding: 40px; background-color: #f9f9f9; border-top: 1px solid #e3e3e3;",
-    h4("Centropyge potteri (Potter's Angelfish)"),
-    img(src = "potters_angel.jpg", height = "400px", style = "max-width: 100%; border-radius: 10px; margin-top: 10px;")
+    h4("Centropyge potteri (Potter's Angelfish) - Kent Glover"),
+    img(src = "https://raw.githubusercontent.com/OCN-682-UH/Glover_Final_Project/main/Potterful/inst/shiny/Potterful/www/potters_angel.jpg", height = "400px", style = "max-width: 100%; border-radius: 10px; margin-top: 10px;")
   )
 )
 
