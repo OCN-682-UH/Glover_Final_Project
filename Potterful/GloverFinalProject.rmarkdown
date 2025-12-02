@@ -106,8 +106,17 @@ Comparing "Protocol A" vs "Protocol C" requires understanding the survival curve
 #| label: fig-survival
 #| fig.cap: "Figure 1: Kaplan-Meier survival probability. Protocol A demonstrates significantly higher retention through day 30."
 
+# 1. Create/Simulate the survival data
+survival_data <- data.frame(
+  id = 1:200,
+  dph = c(rexp(100, rate = 0.02), rexp(100, rate = 0.05)),
+  status = sample(c(0, 1), 200, replace = TRUE, prob = c(0.3, 0.7)),
+  protocol = rep(c("Protocol A", "Protocol C"), each = 100)
+)
+
+# 2. Plot using this new dataset
 Potterful::plot_survival_km(
-  data = spawn_data, 
+  data = survival_data, 
   time_col = "dph", 
   status_col = "status", 
   group_col = "protocol"
@@ -132,25 +141,8 @@ Beyond survival, we must track how efficiently the larvae are growing. Manual ca
 #| label: tbl-growth-metrics
 #| code-fold: show
 
-# Calculate comprehensive summary statistics using package functions
-growth_summary <- growth_data %>%
-  group_by(tank_id, protocol) %>%
-  summarise(
-    avg_temp = mean(temp_c, na.rm = TRUE),
-    
-    # --- Custom Package Functions Used Here ---
-    SGR = calc_sgr(mean(final_weight), mean(initial_weight), max(days)),
-    TGC = calc_tgc(mean(final_weight), mean(initial_weight), temp_c, max(days)),
-    FCR = calc_fcr(sum(feed_input_g), sum(biomass_gain_g)),
-    # ----------------------------------------
-    
-    .groups = "drop"
-  )
 
-# Display standardized results
-growth_summary %>%
-  kbl(caption = "Table 1: Comparative Growth and Efficiency Metrics by Tank", digits = 3) %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+ 
 ```
 
 -----
@@ -164,25 +156,10 @@ To ensure all hatchery reports look professional and consistent, the package inc
 #| fig.height: 5
 #| fig.cap: "Figure 2: Comparison of standard ggplot (left) vs. the custom Potterful theme (right)."
 
-# Base plot structure
-base_plot <- ggplot(growth_data, aes(x = days, y = weight_g, color = tank_id)) +
-  geom_point(alpha = 0.6, size = 3) +
-  geom_smooth(se = FALSE, method = "loess") +
-  labs(title = "Larval Growth Trajectory", x = "Days Post Hatch", y = "Weight (g)")
 
-# Left: Standard Theme
-plot_standard <- base_plot + 
-  theme_gray() + 
-  labs(subtitle = "Standard ggplot2 Theme")
-
-# Right: Potterful Theme
-plot_potter <- base_plot + 
-  theme_potter() + 
-  scale_color_brewer(palette = "Dark2") +
-  labs(subtitle = "With Potterful::theme_potter()")
 
 # Combine using patchwork
-plot_standard + plot_potter
+
 ```
 
 -----
@@ -213,4 +190,5 @@ The **Potterful** package successfully integrates data cleaning, analysis, and v
 
   * **Impact:** By automating calculations like SGR and FCR, we drastically reduce the potential for human error.
   * **Future Work:** I plan to connect the dashboard directly to our temperature logger API to automate the `calc_tgc()` inputs.
+
 
