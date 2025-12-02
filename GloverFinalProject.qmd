@@ -1,131 +1,173 @@
 ---
 title: "Potterful: Streamlining Aquaculture Data for *Centropyge potteri*"
+subtitle: "OCN 682 Final Independent Project"
 author: "Kent Glover"
 date: "2024-12-02"
 format:
   html:
     theme: cosmo
     code-fold: true
-    self-contained: true
+    code-tools: true
     toc: true
     toc-depth: 3
     df-print: paged
-editor: visual
+    self-contained: true
 ---
 
-## 1. Introduction
-
-```{r, echo=FALSE}
-#| label: title-styling
-library(htmltools)
-div(
-  h3("The Challenge of Larval Rearing", style = "color: #2c3e50; font-weight: bold;"),
-  p("Managing aquaculture data for species like Potter's Angelfish (Centropyge potteri) is notoriously complex. Data comes from multiple tanks, different technicians, and varying timepoints.", style = "font-style: italic;")
+```{r setup, include=FALSE}
+# Global chunk options for clean output
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  fig.width = 10
 )
-```
 
-For my final independent project, I developed **Potterful**, an R package designed to standardize this data management workflow. The goal of this project is to move away from messy, error-prone spreadsheets and towards reproducible analysis.
-
-The package provides a suite of tools for:
-
-1.  **Survival Analysis:** Visualizing survival probabilities across protocols.
-2.  **Growth Metrics:** Automating Specific Growth Rate (SGR) and Thermal Growth Coefficient (TGC) calculations.
-3.  **Feed Efficiency:** Calculating Feed Conversion Ratios (FCR).
-4.  **Interactive Exploration:** A Shiny dashboard for real-time data monitoring.
-
-## 2. Setup and Installation
-
-The package is hosted on GitHub. To replicate this analysis, you will need the `Potterful` package and a few standard data science libraries.
-
-```{r setup, echo=TRUE, message=FALSE, warning=FALSE}
-# Load necessary libraries
+# Load standard libraries
 library(tidyverse)
 library(here)
 library(knitr)
 library(survival)
 library(survminer)
 library(patchwork)
-library(ggplot2)
-library(dplyr)
+library(kableExtra)
 
-# Install the Potterful package from GitHub if not already installed
-
-# If developing locally:
+# Load the custom package
 # devtools::install_github("OCN-682-UH/Glover_Final_Project/Potterful")
 library(Potterful)
-devtools::load_all("Potterful") 
-
-# If installed:
-library(Potterful)
-
 ```
 
-## 3. Project Outputs
+## 1\. The Story: From Spreadsheet Chaos to Reproducible Science
 
-### Output 1: Survival Analysis
+### The Challenge
 
-One of the primary questions in our hatchery is: *Which rearing protocol yields the highest survival?*
+Managing aquaculture data for species like **Potter's Angelfish** (*Centropyge potteri*) is notoriously complex. In a busy hatchery environment, data flows from multiple tanks, different technicians, and varying timepoints.
 
-Comparing "Protocol A" vs "Protocol C" requires more than just looking at final counts; we need to understand the survival curve over time. I created the `plot_survival_km()` function to wrap the complex Kaplan-Meier survival analysis into a single, easy-to-use function that applies my custom `theme_potter()`.
+::: {.callout-important}
+**The Problem:** Traditional workflows rely on disconnected spreadsheets, leading to calculation errors in critical metrics like feed efficiency and survival rates.
+:::
 
-```{r survival-plot, echo=TRUE, message=FALSE, warning=FALSE, fig.cap="Figure 1: Kaplan-Meier survival probability showing distinct performance differences between rearing protocols."}
-# Use the package dataset 'pott_spawn_data'
-# We are comparing survival based on the 'protocol' grouping column
+### The Solution: `Potterful`
+
+To solve this, I developed **Potterful**, an R package designed to standardize this workflow. The goal is to move away from error-prone manual entry and towards **reproducible analysis**.
+
+This package provides a suite of **5 custom functions** to automate:
+
+1.  **Survival Visualization:** `plot_survival_km()`
+2.  **Growth Metrics:** `calc_sgr()` and `calc_tgc()`
+3.  **Efficiency Metrics:** `calc_fcr()`
+4.  **Standardized Aesthetics:** `theme_potter()`
+
+-----
+
+## 2\. The Data
+
+To demonstrate the package capabilities, we will use two datasets included in `Potterful`.
+
+::: {.panel-tabset}
+
+### Spawning Data (`spawn_data`)
+
+Tracks the survival status of individual larvae over time across different rearing protocols.
+
+  * **dph:** Days Post Hatch
+  * **status:** 1 = Dead, 0 = Censored/Alive
+  * **protocol:** Rearing method (e.g., Protocol A vs C)
+
+### Growth Data (`growth_data`)
+
+Aggregated tank-level data used to calculate performance metrics.
+
+  * **tank\_id:** Unique tank identifier
+  * **feed\_input\_g:** Total feed given (grams)
+  * **biomass\_gain\_g:** Total weight gained by fish (grams)
+  * **temp\_c:** Average water temperature
+    :::
+
+<!-- end list -->
+
+```{r data-preview}
+#| label: preview-data
+head(Potterful::spawn_data, 3)
+```
+
+-----
+
+## 3\. Analysis Workflow
+
+### Part A: Survival Analysis
+
+*Question: Which rearing protocol yields the highest survival?*
+
+Comparing "Protocol A" vs "Protocol C" requires understanding the survival curve over time, not just final counts. I created `plot_survival_km()` to wrap complex Kaplan-Meier logic into a single function.
+
+```{r survival-plot}
+#| label: fig-survival
+#| fig.cap: "Figure 1: Kaplan-Meier survival probability. Protocol A demonstrates significantly higher retention through day 30."
+
 Potterful::plot_survival_km(
   data = Potterful::spawn_data, 
   time_col = "dph", 
   status_col = "status", 
   group_col = "protocol"
 ) +
-  labs(title = "Survival Probability by Rearing Protocol",
-       subtitle = "Protocol A demonstrates significantly higher retention through day 30")
+  labs(
+    title = "Survival Probability by Rearing Protocol",
+    subtitle = "Analysis generated using Potterful::plot_survival_km()"
+  )
 ```
 
-### Output 2: Growth & Efficiency Metrics
+### Part B: Growth & Efficiency Metrics
 
-Beyond survival, we must track how efficiently the larvae are growing. Manual calculation of these metrics often leads to errors in formula entry.
+Beyond survival, we must track how efficiently the larvae are growing. Manual calculation of these metrics often leads to errors in formula entry. `Potterful` automates this with three vectorized functions:
 
-I wrote three core functions to automate this:
-
--   `calc_sgr()`: Specific Growth Rate (% body weight/day)
--   `calc_tgc()`: Thermal-Unit Growth Coefficient (accounts for temperature)
--   `calc_fcr()`: Feed Conversion Ratio (efficiency of feed input to biomass gain)
+  * **`calc_sgr()`**: Specific Growth Rate (% body weight/day)
+  * **`calc_tgc()`**: Thermal-Unit Growth Coefficient (accounts for temperature)
+  * **`calc_fcr()`**: Feed Conversion Ratio (efficiency of feed input to biomass gain)
 
 <!-- end list -->
 
-```{r growth-table, echo=TRUE, message=FALSE}
-#| label: growth-metrics-table
+```{r growth-table}
+#| label: tbl-growth-metrics
+#| code-fold: show
 
-#Calculate comprehensive summary statistics
+# Calculate comprehensive summary statistics using package functions
 growth_summary <- Potterful::growth_data %>%
   group_by(tank_id, protocol) %>%
   summarise(
     avg_temp = mean(temp_c, na.rm = TRUE),
-    #Use package functions for calculations
+    
+    # --- Custom Package Functions Used Here ---
     SGR = calc_sgr(mean(final_weight), mean(initial_weight), max(days)),
     TGC = calc_tgc(mean(final_weight), mean(initial_weight), temp_c, max(days)),
     FCR = calc_fcr(sum(feed_input_g), sum(biomass_gain_g)),
+    # ----------------------------------------
+    
     .groups = "drop"
   )
 
-#Display the standardized results
-kable(growth_summary, 
-      caption = "Table 1: Comparative Growth and Efficiency Metrics by Tank", 
-      digits = 3,
-      col.names = c("Tank ID", "Protocol", "Avg Temp (°C)", "SGR (%)", "TGC", "FCR"))
+# Display standardized results
+growth_summary %>%
+  kbl(caption = "Table 1: Comparative Growth and Efficiency Metrics by Tank", digits = 3) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
 ```
 
-### Output 3: Visualization Theme (`theme_potter`)
+-----
 
-To ensure all hatchery reports look professional and consistent, I included a custom `ggplot2` theme in the package. `theme_potter()` standardizes font sizes, legend positions, and strip backgrounds (matching the *Centropyge* deep blue colors).
+## 4\. Visual Standardization (`theme_potter`)
 
-Here is a visual comparison of the raw data plotted with a standard theme versus the package theme:
+To ensure all hatchery reports look professional and consistent, the package includes `theme_potter()`. It standardizes font sizes, legend positions, and strip backgrounds to match the *Centropyge* deep blue branding.
 
-```{r theme-demo, echo=TRUE, fig.height=4, fig.width=10, fig.cap="Figure 2: Comparison of standard ggplot (left) vs. theme_potter (right)."}
+```{r theme-demo}
+#| label: fig-theme-compare
+#| fig.height: 5
+#| fig.cap: "Figure 2: Comparison of standard ggplot (left) vs. the custom Potterful theme (right)."
+
 # Base plot structure
 base_plot <- ggplot(Potterful::growth_data, aes(x = days, y = weight_g, color = tank_id)) +
-  geom_point(alpha = 0.6) +
-  geom_smooth(se = FALSE) +
+  geom_point(alpha = 0.6, size = 3) +
+  geom_smooth(se = FALSE, method = "loess") +
   labs(title = "Larval Growth Trajectory", x = "Days Post Hatch", y = "Weight (g)")
 
 # Left: Standard Theme
@@ -137,27 +179,38 @@ plot_standard <- base_plot +
 plot_potter <- base_plot + 
   theme_potter() + 
   scale_color_brewer(palette = "Dark2") +
-  labs(subtitle = "With theme_potter()")
+  labs(subtitle = "With Potterful::theme_potter()")
 
 # Combine using patchwork
 plot_standard + plot_potter
 ```
 
-### Output 4: Interactive Shiny Dashboard
+-----
 
-Finally, to make these tools accessible to technicians who do not code, I built a Shiny dashboard included within the package. This app allows users to upload their own CSVs and generate the survival curves and growth tables seen above instantly.
+## 5\. Democratizing Data: The Shiny App
 
-You can launch the app locally from within RStudio:
+To make these tools accessible to technicians who do not code, I built a Shiny dashboard included within the package. This allows users to upload raw CSVs and generate the survival curves and growth tables seen above instantly.
+
+**You can launch the app locally via:**
 
 ```{r}
-# Launch the Potterful Shiny Dashboard
 Potterful::run_potterful()
 ```
 
-The app is also deployed live at: <https://thefishlg.shinyapps.io/Potterful/>
+**Or visit the deployed version:** [TheFishLG.shinyapps.io/Potterful](https://thefishlg.shinyapps.io/Potterful/)
 
-## 4. Conclusion
+::: {.callout-tip icon=false}
 
-The **Potterful** package successfully integrates data cleaning, analysis, and visualization into a single reproducible workflow. By automating calculations like SGR and FCR, it drastically reduces the potential for human error associated with manual spreadsheet management.
+### App Interface
 
-Future work will focus on expanding the dashboard features to include direct API connections to our temperature loggers for even more automated TGC calculations.
+:::
+
+-----
+
+## 6\. Conclusion & Future Work
+
+The **Potterful** package successfully integrates data cleaning, analysis, and visualization into a single reproducible workflow.
+
+  * **Impact:** By automating calculations like SGR and FCR, we drastically reduce the potential for human error.
+  * **Future Work:** I plan to connect the dashboard directly to our temperature logger API to automate the `calc_tgc()` inputs.
+

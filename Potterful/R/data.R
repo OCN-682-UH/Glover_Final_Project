@@ -40,6 +40,7 @@
 #'   \item{flexion}{Flexion stage (0, 1, or 2)}
 #'   \item{protocol}{Experimental rearing protocol used}
 #' }
+#' @export
 "growth_data"
 
 #' Master Hatchery Dataset
