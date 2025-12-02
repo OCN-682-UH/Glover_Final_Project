@@ -98,9 +98,27 @@ This package includes several datasets sourced from Oceanic Institute 2023-2024 
 
 | Dataset | Description |
 |:---|:---|
-| `growth_data` | Longitudinal length measurements (mm) of larvae over days post hatch (DPH). |
+| `growth_data` | Longitudinal length measurements (mm) of larvae over days post hatch (dph). |
 | `potteri_larvae` | Survival data including status (0=alive, 1=dead) and protocol groups. |
 | `spawn_data` | Daily records of spawn viability, total egg counts, and date. |
+
+
+| Column Name | Description |
+|:---|:---|
+| `id` | Photo/Larvae ID from sampling. |
+| `dph` | Days Post Hatch. |
+| `length` | Notochord Length or Body Length, depending on larvae size. |
+| `depth` | Larvae Depth, measured from anus to top of myomeres. |
+| `Flexion` | 0/1/2 indicaiting not begun (0), incomplete (1), or complete (2). |
+| `Protocol` | Rearing Protocol the larvae was raised on. |
+| `Date` | Date of egg collection, usually morning after evening spawns. |
+| `Viable` | Number of viable eggs. |
+| `Unviable` | Number of unviable eggs. |
+| `Total` | Total number of unviable and viable eggs. |
+| `Viability %` | Percent viability (viable/total x 100) |
+
+
+
 
 ## Authors
 

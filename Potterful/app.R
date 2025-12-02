@@ -3,13 +3,9 @@ library(tidyverse)
 library(lubridate)
 library(bslib)
 library(janitor)
-library(readxl) # Explicitly load for the file reader
+library(readxl)
 
-# ==============================================================================
-# 1. LOCAL FUNCTIONS (Copied from Package to make App Self-Contained)
-# ==============================================================================
-
-# --- Theme ---
+#Theme
 theme_potter <- function(base_size = 12) {
   theme_bw(base_size = base_size) +
     theme(
@@ -20,7 +16,7 @@ theme_potter <- function(base_size = 12) {
     )
 }
 
-# --- Feeding Schedule Plot ---
+# Feeding Schedule Plot
 plot_feeding_schedule <- function(tidy_data) {
   ggplot(tidy_data, aes(x = age, y = feed_category, fill = feed_type)) +
     geom_tile(color = "white", height = 0.8) +
@@ -39,17 +35,17 @@ plot_feeding_schedule <- function(tidy_data) {
     )
 }
 
-# --- Data Reader (Robust Excel/CSV) ---
+# Data Reader
 read_hatchery_data <- function(file_path) {
 
   # Determine extension
   ext <- tolower(tools::file_ext(file_path))
 
-  # 1. Dynamic Skip: Find where "Culture Age" is
+  # 1.Dynamic Skip: find where "Culture Age" is
   if (ext %in% c("xlsx", "xls")) {
-    # Read first 30 rows safely
+    # Read first 30 rows
     header_check <- suppressMessages(readxl::read_excel(file_path, n_max = 30, col_names = FALSE))
-    # Search for "Culture Age" in any column
+    #Search for "Culture Age" in any column
     match_row <- which(apply(header_check, 1, function(x) any(grepl("Culture Age", x))), arr.ind = TRUE)
     skip_n <- if (length(match_row) > 0) match_row[1] - 1 else 0
   } else {
@@ -92,11 +88,8 @@ read_hatchery_data <- function(file_path) {
   }, error = function(e) return(NULL))
 }
 
-# ==============================================================================
-# 2. APP LOGIC
-# ==============================================================================
 
-# --- Data Loading Helpers ---
+#Data Loading Helpers
 get_default_growth <- function() {
   if (file.exists("pott_growth_data.csv")) {
     raw <- read.csv("pott_growth_data.csv", stringsAsFactors = FALSE) %>%
@@ -123,7 +116,7 @@ get_default_spawn <- function() {
   return(NULL)
 }
 
-# --- UI ---
+#UI
 ui <- navbarPage(
   title = "Potterful Analytics"
   ,
@@ -189,7 +182,7 @@ ui <- navbarPage(
            )
   ),
 
-  # Footer with Big Image
+  #Footer with Big Image
   footer = div(
     style = "text-align: center; padding: 40px; background-color: #f9f9f9; border-top: 1px solid #e3e3e3;",
     h4("Centropyge potteri (Potter's Angelfish) - Kent Glover"),
@@ -197,7 +190,7 @@ ui <- navbarPage(
   )
 )
 
-# --- SERVER ---
+#SERVER
 server <- function(input, output, session) {
 
   # Growth
