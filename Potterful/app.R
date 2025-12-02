@@ -2,62 +2,56 @@ library(shiny)
 library(tidyverse)
 library(lubridate)
 library(bslib)
-library(janitor) # Explicitly load janitor
+library(janitor)
+library(Potterful)
 
-# --- 1. DEFINE THEME LOCALLY (Bypasses Package Issue) ---
-theme_potter <- function(base_size = 12) {
-  theme_bw(base_size = base_size) +
-    theme(
-      strip.background = element_rect(fill = "#2c3e50"),
-      strip.text = element_text(color = "white", face = "bold"),
-      legend.position = "bottom",
-      plot.title = element_text(face = "bold", hjust = 0.5)
-    )
-}
-
-# --- 2. DATA LOADING FUNCTIONS ---
-# Reads files from the current deployment directory
+# --- 1. DATA LOADING HELPER FUNCTIONS ---
 get_default_growth <- function() {
-  # Look for file in the same folder as app.R
   if (file.exists("pott_growth_data.csv")) {
     raw <- read.csv("pott_growth_data.csv", stringsAsFactors = FALSE) %>%
       janitor::clean_names()
 
-    # Rename columns if needed to match what the app expects
+    # Cleaning
     if("length" %in% names(raw)) raw <- rename(raw, mean_length_mm = length)
     if("days" %in% names(raw)) raw <- rename(raw, dph = days)
 
-    # Cleaning: Filter out empty rows causing plot errors
-    raw <- raw %>%
-      filter(!is.na(dph), !is.na(mean_length_mm))
-
-    if("protocol" %in% names(raw)) raw <- raw %>% filter(protocol != "")
-
+    raw <- raw %>% filter(!is.na(dph), !is.na(mean_length_mm))
     return(raw)
+  } else {
+    # FALLBACK: Use the dataset included in the package
+    return(Potterful::growth_data)
   }
-  return(NULL) # Return NULL if file missing
 }
 
 get_default_spawn <- function() {
   if (file.exists("pott_spawn_data.csv")) {
     raw <- read.csv("pott_spawn_data.csv", stringsAsFactors = FALSE) %>%
       mutate(
-        Date = tryCatch(lubridate::mdy(Date), error = function(e) lubridate::ymd(Date)),
+        # FIX: "parse_date_time" checks MDY, YMD, and DMY automatically.
+        # No tryCatch needed. This prevents the "No Data" bug.
+        Date = as.Date(lubridate::parse_date_time(Date, orders = c("mdy", "ymd", "dmy"))),
+
+        # Ensure numbers are clean (removes commas)
         Viable = as.numeric(gsub(",", "", Viable)),
         Unviable = as.numeric(gsub(",", "", Unviable))
       ) %>%
       filter(!is.na(Date))
     return(raw)
+  } else {
+    return(Potterful::spawn_data)
   }
-  return(NULL)
 }
 
-# --- 3. UI DEFINITION ---
+# --- 2. UI DEFINITION ---
 ui <- navbarPage(
-  title = "Potterful Analytics",
+  title = div(
+    # Fish Icon
+    img(src = "potters_angel.png", height = "30px", style = "margin-right: 10px;"),
+    "Potterful Analytics"
+  ),
   theme = bslib::bs_theme(version = 4, bootswatch = "flatly"),
 
-  # Tab 1: Larval Growth
+  # --- TAB 1: LARVAL GROWTH ---
   tabPanel("Larval Growth",
            sidebarLayout(
              sidebarPanel(
@@ -69,6 +63,9 @@ ui <- navbarPage(
                hr(),
                h4("Controls"),
                uiOutput("protocol_selector"),
+
+               # FIX 1: Ensure values match janitor cleaned names (lowercase 'depth')
+               # and the 'selected' argument uses the value, not the label.
                selectInput("y_metric", "Y-Axis Metric:",
                            choices = c("Length (mm)" = "mean_length_mm",
                                        "Body Depth" = "depth"),
@@ -86,7 +83,7 @@ ui <- navbarPage(
            )
   ),
 
-  # Tab 2: Spawning Trends
+  # --- TAB 2: SPAWNING TRENDS ---
   tabPanel("Spawning Trends",
            sidebarLayout(
              sidebarPanel(
@@ -108,13 +105,35 @@ ui <- navbarPage(
                tableOutput("spawnTable")
              )
            )
+  ),
+
+  # --- TAB 3: FEEDING SCHEDULE ---
+  tabPanel("Feeding Schedule",
+           sidebarLayout(
+             sidebarPanel(
+               h4("Feeding Schedule Analysis"),
+               p("Upload a raw hatchery daily log (.xlsx or .csv) to visualize the feeding timeline."),
+
+               # Accepts Excel files now
+               fileInput("feed_file", "Upload Daily Log",
+                         accept = c(".csv", ".xlsx", ".xls")),
+
+               hr(),
+               helpText("Tip: Ensure the file has a 'Culture Age' header row.")
+             ),
+             mainPanel(
+               plotOutput("feedingPlot", height = "600px")
+             )
+           )
   )
 )
 
-# --- 4. SERVER LOGIC ---
+# --- 3. SERVER LOGIC ---
 server <- function(input, output, session) {
 
-  # Growth Data
+  # ==========================
+  # LOGIC: Larval Growth
+  # ==========================
   growth_dataset <- reactive({
     if (is.null(input$growth_file)) {
       return(get_default_growth())
@@ -124,7 +143,6 @@ server <- function(input, output, session) {
       if("length" %in% names(raw)) raw <- rename(raw, mean_length_mm = length)
       if("days" %in% names(raw)) raw <- rename(raw, dph = days)
 
-      # Clean uploaded data same as default
       raw <- raw %>% filter(!is.na(dph), !is.na(mean_length_mm))
       if("protocol" %in% names(raw)) raw <- raw %>% filter(protocol != "")
       return(raw)
@@ -135,28 +153,6 @@ server <- function(input, output, session) {
     if (is.null(input$growth_file)) "Viewing: Original Project Data" else paste("Viewing:", input$growth_file$name)
   })
 
-  # Spawning Data
-  spawn_dataset <- reactive({
-    if (is.null(input$spawn_file)) {
-      return(get_default_spawn())
-    } else {
-      req(input$spawn_file)
-      raw <- read.csv(input$spawn_file$datapath)
-      raw %>%
-        mutate(
-          Date = tryCatch(lubridate::mdy(Date), error = function(e) lubridate::ymd(Date)),
-          Viable = as.numeric(gsub(",", "", Viable)),
-          Unviable = as.numeric(gsub(",", "", Unviable))
-        ) %>%
-        filter(!is.na(Date))
-    }
-  })
-
-  output$spawn_status <- renderText({
-    if (is.null(input$spawn_file)) "Viewing: Original Project Data" else paste("Viewing:", input$spawn_file$name)
-  })
-
-  # Dynamic UI
   output$protocol_selector <- renderUI({
     req(growth_dataset())
     df <- growth_dataset()
@@ -165,15 +161,6 @@ server <- function(input, output, session) {
     }
   })
 
-  output$date_range_ui <- renderUI({
-    req(spawn_dataset())
-    df <- spawn_dataset()
-    if("Date" %in% names(df) && nrow(df) > 0) {
-      dateRangeInput("dates", "Select Date Range:", start = min(df$Date, na.rm=TRUE), end = max(df$Date, na.rm=TRUE))
-    }
-  })
-
-  # Plots
   output$growthPlot <- renderPlot({
     req(growth_dataset())
     df <- growth_dataset()
@@ -191,14 +178,22 @@ server <- function(input, output, session) {
     if("protocol" %in% names(df)) p <- p + aes(color = protocol)
     p <- p + geom_point(alpha = 0.6, size = 3)
 
-    # Smart Smoothing
-    if (nrow(df) >= 10 && length(unique(df$dph)) >= 5) {
-      p <- p + geom_smooth(se = FALSE, method = "loess", span = 1.0)
-    } else if (nrow(df) >= 3) {
+    if (nrow(df) >= 3) {
       p <- p + geom_smooth(se = FALSE, method = "lm")
     }
 
-    suppressWarnings(print(p + theme_potter() + labs(title = paste("Larval", input$y_metric), x = "Days Post Hatch (dph)")))
+    # FIX 2: Create a human-readable label based on the input selection
+    pretty_label <- switch(input$y_metric,
+                           "mean_length_mm" = "Length (mm)",
+                           "depth" = "Body Depth",
+                           input$y_metric) # Fallback to raw name if needed
+
+    suppressWarnings(print(
+      p + Potterful::theme_potter() +
+        labs(title = paste("Larval", pretty_label),
+             y = pretty_label, # Use the pretty label on the axis too
+             x = "Days Post Hatch (dph)")
+    ))
   })
 
   output$growthStats <- renderTable({
@@ -211,10 +206,43 @@ server <- function(input, output, session) {
     }
   })
 
+  # ==========================
+  # LOGIC: Spawning Trends
+  # ==========================
+  spawn_dataset <- reactive({
+    if (is.null(input$spawn_file)) {
+      return(get_default_spawn())
+    } else {
+      req(input$spawn_file)
+      raw <- read.csv(input$spawn_file$datapath, stringsAsFactors = FALSE)
+
+      # FIX: Apply the same robust cleaning to uploaded files
+      raw %>%
+        mutate(
+          Date = as.Date(lubridate::parse_date_time(Date, orders = c("mdy", "ymd", "dmy"))),
+          Viable = as.numeric(gsub(",", "", Viable)),
+          Unviable = as.numeric(gsub(",", "", Unviable))
+        ) %>%
+        filter(!is.na(Date))
+    }
+  })
+
+  output$spawn_status <- renderText({
+    if (is.null(input$spawn_file)) "Viewing: Original Project Data" else paste("Viewing:", input$spawn_file$name)
+  })
+
+  output$date_range_ui <- renderUI({
+    req(spawn_dataset())
+    df <- spawn_dataset()
+    if("Date" %in% names(df) && nrow(df) > 0) {
+      dateRangeInput("dates", "Select Date Range:", start = min(df$Date, na.rm=TRUE), end = max(df$Date, na.rm=TRUE))
+    }
+  })
+
   output$spawnPlot <- renderPlot({
     req(spawn_dataset())
     df <- spawn_dataset()
-    validate(need("Viable" %in% names(df), "Missing columns"), need(nrow(df) > 0, "No data"))
+    validate(need("Viable" %in% names(df), "Missing columns"), need(nrow(df) > 0, "No data found after cleaning."))
 
     if (!is.null(input$dates)) df <- df %>% filter(Date >= input$dates[1] & Date <= input$dates[2])
 
@@ -224,7 +252,7 @@ server <- function(input, output, session) {
       geom_bar(stat = "identity", position = "stack") +
       scale_fill_manual(values = c("Viable" = "#4e79a7", "Unviable" = "#f28e2b")) +
       scale_y_continuous(labels = scales::comma) +
-      theme_potter() +
+      Potterful::theme_potter() +
       labs(title = "Daily Egg Production", y = "Egg Count")
   })
 
@@ -234,6 +262,21 @@ server <- function(input, output, session) {
     if(nrow(df) == 0) return(NULL)
     df %>% summarise(`Total Eggs` = sum(Viable + Unviable, na.rm=TRUE), `Total Viable` = sum(Viable, na.rm=TRUE), `Avg Viability %` = mean(Viable/(Viable+Unviable)*100, na.rm=TRUE)) %>%
       mutate(`Total Eggs` = format(`Total Eggs`, big.mark=","), `Total Viable` = format(`Total Viable`, big.mark=","))
+  })
+
+  # ==========================
+  # LOGIC: Feeding Schedule
+  # ==========================
+  output$feedingPlot <- renderPlot({
+    req(input$feed_file)
+    clean_feed <- Potterful::read_hatchery_data(input$feed_file$datapath)
+
+    validate(
+      need(!is.null(clean_feed), "Could not read data. Check file format."),
+      need(nrow(clean_feed) > 0, "No feeding data found in file.")
+    )
+
+    Potterful::plot_feeding_schedule(clean_feed)
   })
 }
 
