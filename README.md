@@ -1,3 +1,8 @@
+# Kent Glover's Final Project
+An R package for aquaculture data mangement and vizualization for reef species (*Centropyge potteri*).
+
+## **[Shiny App!](https://thefishlg.shinyapps.io/Potterful)** 🐟
+
 # Potterful: Aquaculture Data Management Tools
 
 <img src="https://raw.githubusercontent.com/OCN-682-UH/Glover_Final_Project/main/Potterful/inst/shiny/Potterful/www/potters_angel.jpg" align="center" height="400" alt="Potters Angelfish" />
