@@ -1,193 +1,175 @@
 ---
-title: "Potterful: Streamlining Aquaculture Data for *Centropyge potteri*"
-subtitle: "OCN 682 Final Independent Project"
+title: "Potterful: Aquaculture Data Management"
+subtitle: "Tools for Reef Fish Larval Rearing"
 author: "Kent Glover"
 date: "2024-12-02"
-format:
-  html:
-    theme: cosmo
-    code-fold: true
-    code-tools: true
-    toc: true
-    toc-depth: 3
-    df-print: paged
-    self-contained: true
+format: 
+  revealjs:
+    theme: solarized
+    transition: slide
+    slide-number: true
+    preview-links: auto
+    logo: "inst/shiny/Potterful/www/potters_angel.jpg" # Optional: ensure path is correct or remove
+    footer: "OCN 682 Final Project"
 ---
 
-```{r setup, include=FALSE}
-# Global chunk options for clean output
-knitr::opts_chunk$set(
-  echo = TRUE,
-  message = FALSE,
-  warning = FALSE,
-  fig.align = "center",
-  fig.width = 10
-)
+## Introduction {background-color="#2c3e50"}
 
-# Load standard libraries
-library(tidyverse)
-library(here)
-library(knitr)
-library(survival)
-library(survminer)
-library(patchwork)
-library(kableExtra)
+<div style="color: white">
+### The Problem
+Aquaculture generates massive amounts of messy data, especially in a busy lab with 10 staff members:
 
-# Load the custom package
-# devtools::install_github("OCN-682-UH/Glover_Final_Project/Potterful")
-library(Potterful)
-```
-
-## 1\. The Story: From Spreadsheet Chaos to Reproducible Science
-
-### The Challenge
-
-Managing aquaculture data for species like **Potter's Angelfish** (*Centropyge potteri*) is notoriously complex. In a busy hatchery environment, data flows from multiple tanks, different technicians, and varying timepoints.
-
-::: {.callout-important}
-**The Problem:** Traditional workflows rely on disconnected spreadsheets, leading to calculation errors in critical metrics like feed efficiency and survival rates.
-:::
+-   Daily feedings, Environmental logs, Mortality counts, Growth measurements
 
 ### The Solution: `Potterful`
+An R package designed to standardise the ingestion, analysis, and visualization of aquaculture data.
+</div>
 
-To solve this, I developed **Potterful**, an R package designed to standardize this workflow. The goal is to move away from error-prone manual entry and towards **reproducible analysis**.
+## Package Overview
 
-This package provides a suite of **5 custom functions** to automate:
+The `Potterful` package provides:
 
-1.  **Survival Visualization:** `plot_survival_km()`
-2.  **Growth Metrics:** `calc_sgr()` and `calc_tgc()`
-3.  **Efficiency Metrics:** `calc_fcr()`
-4.  **Standardized Aesthetics:** `theme_potter()`
-
------
-
-## 2\. The Data
-
-To demonstrate the package capabilities, we will use two datasets included in `Potterful`.
-
-::: {.panel-tabset}
-
-### Spawning Data (`spawn_data`)
-
-Tracks the survival status of individual larvae over time across different rearing protocols.
-
-  * **dph:** Days Post Hatch
-  * **status:** 1 = Dead, 0 = Censored/Alive
-  * **protocol:** Rearing method (e.g., Protocol A vs C)
-
-### Growth Data (`growth_data`)
-
-Aggregated tank-level data used to calculate performance metrics.
-
-  * **tank\_id:** Unique tank identifier
-  * **feed\_input\_g:** Total feed given (grams)
-  * **biomass\_gain\_g:** Total weight gained by fish (grams)
-  * **temp\_c:** Average water temperature
-    :::
-
-<!-- end list -->
-
-```{r data-preview}
-#| label: preview-data
-head(spawn_data, 3)
-```
-
------
-
-## 3\. Analysis Workflow
-
-### Part A: Survival Analysis
-
-*Question: Which rearing protocol yields the highest survival?*
-
-Comparing "Protocol A" vs "Protocol C" requires understanding the survival curve over time, not just final counts. I created `plot_survival_km()` to wrap complex Kaplan-Meier logic into a single function.
-
-```{r survival-plot}
-#| label: fig-survival
-#| fig.cap: "Figure 1: Kaplan-Meier survival probability. Protocol A demonstrates significantly higher retention through day 30."
-
-# 1. Create/Simulate the survival data
-survival_data <- data.frame(
-  id = 1:200,
-  dph = c(rexp(100, rate = 0.02), rexp(100, rate = 0.05)),
-  status = sample(c(0, 1), 200, replace = TRUE, prob = c(0.3, 0.7)),
-  protocol = rep(c("Protocol A", "Protocol C"), each = 100)
-)
-
-# 2. Plot using this new dataset
-Potterful::plot_survival_km(
-  data = survival_data, 
-  time_col = "dph", 
-  status_col = "status", 
-  group_col = "protocol"
-) +
-  labs(
-    title = "Survival Probability by Rearing Protocol",
-    subtitle = "Analysis generated using Potterful::plot_survival_km()"
-  )
-```
-
-### Part B: Growth & Efficiency Metrics
-
-Beyond survival, we must track how efficiently the larvae are growing. Manual calculation of these metrics often leads to errors in formula entry. `Potterful` automates this with three vectorized functions:
-
-  * **`calc_sgr()`**: Specific Growth Rate (% body weight/day)
-  * **`calc_tgc()`**: Thermal-Unit Growth Coefficient (accounts for temperature)
-  * **`calc_fcr()`**: Feed Conversion Ratio (efficiency of feed input to biomass gain)
-
-<!-- end list -->
-
-```{r growth-table}
-#| label: tbl-growth-metrics
-#| code-fold: show
-
-
- 
-```
-
------
-
-## 4\. Visual Standardization (`theme_potter`)
-
-To ensure all hatchery reports look professional and consistent, the package includes `theme_potter()`. It standardizes font sizes, legend positions, and strip backgrounds to match the *Centropyge* deep blue branding.
-
-```{r theme-demo}
-#| label: fig-theme-compare
-#| fig.height: 5
-#| fig.cap: "Figure 2: Comparison of standard ggplot (left) vs. the custom Potterful theme (right)."
-
-
-
-# Combine using patchwork
-
-```
-
------
-
-## 5\. Democratizing Data: The Shiny App
-
-To make these tools accessible to technicians who do not code, I built a Shiny dashboard included within the package. This allows users to upload raw CSVs and generate the survival curves and growth tables seen above instantly.
-
-**You can launch the app locally via:**
+1.  **Data Ingestion**: Tools to clean messy Excel datasheets.
+2.  **Growth Metrics**: Functions for SGR, TGC, and FCR.
+3.  **Visualization**: Custom `ggplot2` themes and survival plots.
+4.  **Interactive Dashboard**: A built-in Shiny app.
 
 ```{r}
-run_potterful()
+#| label: setup
+#| include: false
+
+# Load necessary libraries
+library(tidyverse)
+library(survival)
+library(survminer)
+library(knitr)
+
+# DEVELOPMENT MODE: Load the package from the current directory
+# This ensures it works even if you haven't fully "installed" it yet.
+devtools::load_all(".") 
 ```
 
-**Or visit the deployed version:** [TheFishLG.shinyapps.io/Potterful](https://thefishlg.shinyapps.io/Potterful/)
+## Metric 1: Growth Analysis
 
-::: {.callout-tip icon=false}
+We can quickly calculate metrics like **Specific Growth Rate (SGR)** using the package's `calc_sgr()` function.
 
-### App Interface
+```{r}
+#| echo: true
+#| eval: true
 
-:::
+# Example: Calculating SGR for a single tank
+initial_len <- 1.489 # mm
+final_len <- 3.884   # mm
+days <- 18
 
------
+sgr <- calc_sgr(
+  final_size = final_len, 
+  initial_size = initial_len, 
+  days = days
+)
 
-## 6\. Conclusion & Future Work
+paste0("Specific Growth Rate: ", round(sgr, 2), "% per day")
+```
 
-The **Potterful** package successfully integrates data cleaning, analysis, and visualization into a single reproducible workflow.
+## Visualizing Growth
 
-  * **Impact:** By automating calculations like SGR and FCR, we drastically reduce the potential for human error.
-  * **Future Work:** I plan to connect the dashboard directly to our temperature logger API to automate the `calc_tgc()` inputs.
+Using the package's custom dataset `pott_growth_data.csv` and `theme_potter()`.
 
+```{r}
+#| label: plot-growth
+#| echo: true
+#| output-location: slide
+#| fig-width: 10
+#| fig-height: 5
+
+# Load Data (Adjust path if necessary)
+growth_df <- read_csv("data-raw/pott_growth_data.csv", show_col_types = FALSE) %>%
+  filter(!is.na(length))
+
+# Plot
+ggplot(growth_df, aes(x = dph, y = length, color = Protocol)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(se = FALSE, method = "loess") +
+  labs(title = "Larval Growth by Protocol",
+       x = "Days Post Hatch (DPH)",
+       y = "Length (mm)") +
+  theme_potter() # <--- Using our custom package theme!
+```
+
+## Metric 2: Survival Analysis
+
+The package streamlines Kaplan-Meier survival curves using `plot_survival_km()`.
+
+*(Simulated data for demonstration)*
+
+```{r}
+#| echo: true
+#| output-location: slide
+
+# 1. Create specific Mock Data
+mock_survival <- data.frame(
+  dph = sample(1:30, 100, replace = TRUE),
+  status = sample(c(0, 1), 100, replace = TRUE, prob = c(0.7, 0.3)),
+  protocol = sample(c("Protocol A", "Protocol B"), 100, replace = TRUE)
+)
+
+# 2. Use the package function
+plot_survival_km(
+  data = mock_survival,
+  time_col = "dph",
+  status_col = "status",
+  group_col = "protocol"
+)
+```
+
+## Spawning Performance
+
+Tracking viability over time using `pott_spawn_data.csv`.
+
+```{r}
+#| echo: false
+#| warning: false
+#| fig-width: 10
+
+# Load and clean the spawn data
+spawn_df <- read_csv("data-raw/pott_spawn_data.csv", show_col_types = FALSE) %>%
+  # Select only the first 5 valid columns to avoid the duplicate/empty ones at the end
+  select(1:5) %>%
+  # Manually rename to ensure we have the exact names we expect
+  set_names(c("date", "viable", "unviable", "total", "viability_percent")) %>%
+  mutate(date = mdy(date)) %>%
+  filter(!is.na(viability_percent))
+
+# Create the plot
+ggplot(spawn_df, aes(x = date, y = viability_percent)) +
+  geom_line(color = "#2c3e50") +
+  geom_area(fill = "#2c3e50", alpha = 0.2) +
+  labs(title = "Spawning Viability (2023-2024)",
+       x = "Date",
+       y = "Viability (%)") +
+  theme_potter()
+```
+
+## The Shiny App
+
+`Potterful` includes a bundled Shiny application for exploring this data interactively.
+
+To launch the app:
+
+**Visit** [TheFishLG.shinyapps.io/Potterful](https://thefishlg.shinyapps.io/Potterful/)
+
+### Key Features:
+
+  - Filter data by date range.
+  - Compare multiple rearing protocols instantly.
+  - Download summary reports.
+
+## Summary
+
+The **Potterful** package simplifies the workflow for aquaculture research.
+
+### Future Development:
+
+  - Add `calc_fcr()` integration for live feeds.
+  - Incorporate water quality logs.
+  - Publish to CRAN?

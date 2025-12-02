@@ -232,7 +232,7 @@ server <- function(input, output, session) {
     p <- ggplot(df, aes(x = dph, y = .data[[input$y_metric]]))
     if("protocol" %in% names(df)) p <- p + aes(color = protocol)
     p <- p + geom_point(alpha = 0.6, size = 3)
-    if(nrow(df) >= 3) p <- p + geom_smooth(se = FALSE, method = "lm")
+    if(nrow(df) >= 3) p <- p + geom_smooth(se = FALSE, method = "loess")
 
     label <- switch(input$y_metric, "mean_length_mm" = "Length (mm)", "depth" = "Body Depth", input$y_metric)
 
