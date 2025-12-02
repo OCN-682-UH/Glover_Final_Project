@@ -1,3 +1,4 @@
+options(shiny.autoload.r = FALSE) # Fix: Prevent Shiny from autoloading R/ scripts which conflicts with package loading
 library(shiny)
 library(tidyverse)
 library(lubridate)
